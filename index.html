@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
+  <title>Phone Heading (MVP)</title>
+  <style>
+    :root { --bg: #0b1020; --fg: #e8eefc; --accent: #7aa2ff; --muted:#9fb3d1; }
+    html, body { height: 100%; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, sans-serif; display: grid; place-items: center; }
+    .card { width: min(680px, 92vw); padding: 20px; border-radius: 18px; background: rgba(255,255,255,0.03); box-shadow: 0 10px 30px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.06); }
+    h1 { margin: 0 0 12px; font-size: 1.25rem; font-weight: 600; color: var(--fg); }
+    .muted { color: var(--muted); font-size: .925rem; }
+    .row { display: flex; align-items: center; gap: 16px; }
+    .compass { position: relative; width: 260px; height: 260px; margin: 12px auto; border-radius: 50%; border: 2px solid rgba(122,162,255,0.25); background: radial-gradient(ellipse at center, rgba(122,162,255,.075), rgba(122,162,255,0) 60%); }
+    .tick { position: absolute; left: 50%; top: 8px; width: 2px; height: 24px; background: rgba(255,255,255,0.25); transform-origin: center calc(122px); }
+    .needle { position: absolute; left: 50%; top: 50%; width: 6px; height: 120px; background: linear-gradient(180deg, #ff5555, #e60026); border-radius: 3px; transform-origin: 50% 90%; transform: translate(-50%, -100%) rotate(0deg); box-shadow: 0 8px 18px rgba(230,0,38,0.35); }
+    .needle::after { content: ""; position: absolute; left: 50%; bottom: -14px; transform: translateX(-50%); width: 10px; height: 10px; background: #e8eefc; border-radius: 50%; box-shadow: 0 0 0 3px rgba(122,162,255,0.35), 0 0 18px rgba(122,162,255,0.5) inset; }
+    .readout { text-align: center; margin-top: 10px; }
+    .heading { font-size: 3rem; font-weight: 700; letter-spacing: .05em; }
+    .deg { font-variant-numeric: tabular-nums; font-size: 1.1rem; color: var(--muted); }
+    button { cursor: pointer; appearance: none; background: var(--accent); color: #0b1020; font-weight: 700; border: none; border-radius: 12px; padding: 12px 16px; margin-top: 10px; width: 100%; box-shadow: 0 8px 20px rgba(122,162,255,0.35); }
+    button:disabled { opacity: .6; filter: grayscale(.2); cursor: not-allowed; }
+    .status { margin-top: 10px; font-size: .95rem; color: var(--muted); text-align: center; }
+    .grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+    .tips { font-size: .9rem; color: var(--muted); }
+    .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; border: 1px solid rgba(122,162,255,.35); color: var(--accent); font-weight: 700; letter-spacing: .04em; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="row" style="justify-content: space-between; align-items: baseline;">
+      <h1>Phone Heading</h1>
+      <span class="pill" id="support-pill">CHECKING…</span>
+    </div>
+
+    <div class="compass" aria-hidden="true">
+      <!-- simple ticks every 45° -->
+      <div class="tick" style="transform: translate(-50%,0) rotate(0deg)"></div>
+      <div class="tick" style="transform: translate(-50%,0) rotate(45deg)"></div>
+      <div class="tick" style="transform: translate(-50%,0) rotate(90deg)"></div>
+      <div class="tick" style="transform: translate(-50%,0) rotate(135deg)"></div>
+      <div class="tick" style="transform: translate(-50%,0) rotate(180deg)"></div>
+      <div class="tick" style="transform: translate(-50%,0) rotate(225deg)"></div>
+      <div class="tick" style="transform: translate(-50%,0) rotate(270deg)"></div>
+      <div class="tick" style="transform: translate(-50%,0) rotate(315deg)"></div>
+      <div class="needle" id="needle"></div>
+    </div>
+
+    <div class="readout">
+      <div class="heading" id="dir">—</div>
+      <div class="deg" id="deg">0°</div>
+    </div>
+
+    <div class="grid">
+      <button id="btn">Enable compass</button>
+      <div class="status" id="status">Grant motion & orientation access to start. On iOS, you'll be asked for permission.</div>
+    </div>
+
+    <details style="margin-top:12px">
+      <summary class="muted">Tips & notes</summary>
+      <div class="tips">
+        <ul>
+          <li>Use over <strong>HTTPS</strong> for best support. Some browsers block sensors on plain HTTP.</li>
+          <li>If the heading looks off, move the phone in a gentle <em>figure‑8</em> to calibrate.</li>
+          <li>Rotate the device flat (screen up) for most accurate results.</li>
+          <li>Older iOS uses an internal <code>webkitCompassHeading</code>; modern Android uses <code>alpha</code> with screen orientation compensation. This app handles both.</li>
+        </ul>
+      </div>
+    </details>
+  </div>
+
+  <script>
+    const btn = document.getElementById('btn');
+    const statusEl = document.getElementById('status');
+    const dirEl = document.getElementById('dir');
+    const degEl = document.getElementById('deg');
+    const needle = document.getElementById('needle');
+    const pill = document.getElementById('support-pill');
+
+    const DIRS = [
+      'N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+      'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'
+    ];
+
+    function degToDir(d) {
+      const i = Math.round(d / 22.5) % 16; // 360/16 = 22.5°
+      return DIRS[i];
+    }
+
+    function updateUI(heading) {
+      const h = (heading + 360) % 360; // normalize
+      dirEl.textContent = degToDir(h);
+      degEl.textContent = h.toFixed(0) + '°';
+      // rotate needle to point North: needle rotates by -heading
+      needle.style.transform = `translate(-50%, -100%) rotate(${-h}deg)`;
+    }
+
+    function screenRotation() {
+      // degrees the screen is rotated (0, 90, 180, 270)
+      const o = screen.orientation || screen.msOrientation || screen.mozOrientation;
+      if (o && typeof o.angle === 'number') return o.angle;
+      // legacy fallback
+      return (window.orientation || 0);
+    }
+
+    function computeHeadingFromAlpha(alpha) {
+      // Most Android Chrome: alpha is 0° when the top of the device points north.
+      // iOS often needs 360 - alpha. We'll heuristically adjust using vendor fields.
+      let a = (typeof alpha === 'number') ? alpha : 0;
+      // compensate screen rotation so the heading is relative to the real world
+      a += screenRotation();
+      a = (a + 360) % 360;
+      return a;
+    }
+
+    function start() {
+      if (!('ondeviceorientationabsolute' in window) && !('ondeviceorientation' in window)) {
+        pill.textContent = 'NOT SUPPORTED';
+        statusEl.textContent = 'DeviceOrientation not supported in this browser.';
+        btn.disabled = true;
+        return;
+      }
+      pill.textContent = 'LISTENING';
+      statusEl.textContent = 'Move the phone to calibrate if needed.';
+
+      const handler = (ev) => {
+        let heading;
+        // Safari/iOS proprietary
+        if (typeof ev.webkitCompassHeading === 'number') {
+          heading = ev.webkitCompassHeading; // already true heading (0 = North)
+        } else if (typeof ev.alpha === 'number') {
+          heading = computeHeadingFromAlpha(ev.alpha);
+          // If event.absolute is false, values may be relative; still usable as MVP.
+        }
+        if (typeof heading === 'number' && !Number.isNaN(heading)) {
+          updateUI(heading);
+        }
+      };
+
+      // Prefer absolute event when available
+      if ('ondeviceorientationabsolute' in window) {
+        window.addEventListener('deviceorientationabsolute', handler, true);
+      }
+      window.addEventListener('deviceorientation', handler, true);
+    }
+
+    function requestPermissionIfNeeded() {
+      // iOS 13+
+      if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+        DeviceOrientationEvent.requestPermission().then(state => {
+          if (state === 'granted') {
+            start();
+            btn.disabled = true;
+          } else {
+            statusEl.textContent = 'Permission denied. You can enable Motion & Orientation in Settings > Safari (iOS).';
+          }
+        }).catch(err => {
+          statusEl.textContent = 'Permission error: ' + err;
+        });
+      } else {
+        // Android / desktop
+        start();
+        btn.disabled = true;
+      }
+    }
+
+    // Initial support check text
+    pill.textContent = ('DeviceOrientationEvent' in window) ? 'READY' : 'NO API';
+    btn.addEventListener('click', requestPermissionIfNeeded);
+
+    // Autostart on user interaction anywhere (helps Android)
+    window.addEventListener('pointerdown', () => {
+      if (!btn.disabled) requestPermissionIfNeeded();
+    }, { once: true });
+  </script>
+</body>
+</html>
